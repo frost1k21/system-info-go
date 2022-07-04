@@ -1,0 +1,12 @@
+GET http://localhost:8080/sysinfos?wsname=ws555a&wsname=ws836
+
+###
+
+GET http://localhost:8080/sysinfo/ws555a
+
+###
+
+POST http://localhost:8080/sysinfos
+Content-Type: application/json
+
+["ws836","ws555a"]
