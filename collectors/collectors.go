@@ -134,151 +134,88 @@ var (
 		D3DKMDT_VOT_HDMI: "HDMI",
 		D3DKMDT_VOT_DVI:  "DVI",
 	}
-
-	sysInfoCollectSlice = []sysInfoCollect{
-		{value: []OperatingSystem{}, wmiClass: "Win32_OperatingSystem", namespace: "root\\cimv2"},
-		{value: []Cpu{}, wmiClass: "Win32_Processor", namespace: "root\\cimv2"},
-		{value: []Motherboard{}, wmiClass: "win32_BaseBoard", namespace: "root\\cimv2"},
-		{value: []SystemUser{}, wmiClass: "Win32_ComputerSystem", namespace: "root\\cimv2"},
-		{value: []physicalMemory{}, wmiClass: "Win32_PhysicalMemory", namespace: "root\\cimv2"},
-		{value: []msSmBios_rawSMBiosTables{}, wmiClass: "MSSmBios_RawSMBiosTables", namespace: "root\\wmi"},
-		{value: []DiskDrive{}, wmiClass: "Win32_DiskDrive", namespace: "root\\cimv2"},
-		{value: []VideoAdapter{}, wmiClass: "Win32_VideoController", namespace: "root\\cimv2"},
-		{value: []wmiMonitorID{}, wmiClass: "WmiMonitorID", namespace: "root\\wmi"},
-		{value: []wmiMonitorConnectionParams{}, wmiClass: "WmiMonitorConnectionParams", namespace: "root\\wmi"},
-	}
 )
 
-func getOperatingSystemInformation(wsName string) (OperatingSystem, error) {
-	dst, err := getGenericInfo[OperatingSystem](wsName, "Win32_OperatingSystem")
-	if err != nil {
-		return OperatingSystem{}, err
+func getSysInfoCollection(wsName string) (map[reflect.Type]sysInfoCollect, error) {
+	sysInfoCollectSlice := map[reflect.Type]sysInfoCollect{
+		reflect.TypeOf(OperatingSystem{}):            {value: &[]OperatingSystem{}, wmiClass: "Win32_OperatingSystem", namespace: "root\\cimv2"},
+		reflect.TypeOf(Cpu{}):                        {value: &[]Cpu{}, wmiClass: "Win32_Processor", namespace: "root\\cimv2"},
+		reflect.TypeOf(Motherboard{}):                {value: &[]Motherboard{}, wmiClass: "win32_BaseBoard", namespace: "root\\cimv2"},
+		reflect.TypeOf(SystemUser{}):                 {value: &[]SystemUser{}, wmiClass: "Win32_ComputerSystem", namespace: "root\\cimv2"},
+		reflect.TypeOf(physicalMemory{}):             {value: &[]physicalMemory{}, wmiClass: "Win32_PhysicalMemory", namespace: "root\\cimv2"},
+		reflect.TypeOf(msSmBios_rawSMBiosTables{}):   {value: &[]msSmBios_rawSMBiosTables{}, wmiClass: "MSSmBios_RawSMBiosTables", namespace: "root\\wmi"},
+		reflect.TypeOf(DiskDrive{}):                  {value: &[]DiskDrive{}, wmiClass: "Win32_DiskDrive", namespace: "root\\cimv2"},
+		reflect.TypeOf(VideoAdapter{}):               {value: &[]VideoAdapter{}, wmiClass: "Win32_VideoController", namespace: "root\\cimv2"},
+		reflect.TypeOf(wmiMonitorID{}):               {value: &[]wmiMonitorID{}, wmiClass: "WmiMonitorID", namespace: "root\\wmi"},
+		reflect.TypeOf(wmiMonitorConnectionParams{}): {value: &[]wmiMonitorConnectionParams{}, wmiClass: "WmiMonitorConnectionParams", namespace: "root\\wmi"},
 	}
-	dst[0].Name = strings.TrimSpace(strings.Split(dst[0].Name, "|")[0])
-	return dst[0], nil
-}
+	for _, sysInfo := range sysInfoCollectSlice {
+		q := wmi.CreateQuery(sysInfo.value, "", sysInfo.wmiClass)
+		err := wmi.Query(q, sysInfo.value, wsName, sysInfo.namespace)
 
-func getCpuInformation(wsName string) (Cpu, error) {
-	dst, err := getGenericInfo[Cpu](wsName, "Win32_Processor")
-	if err != nil {
-		return Cpu{}, err
-	}
-	return dst[0], nil
-}
-
-func getMotherboardInformation(wsName string) (Motherboard, error) {
-	dst, err := getGenericInfo[Motherboard](wsName, "win32_BaseBoard")
-	if err != nil {
-		return Motherboard{}, err
-	}
-	return dst[0], nil
-}
-
-func getSystemUserInformation(wsName string) (SystemUser, error) {
-	dst, err := getGenericInfo[SystemUser](wsName, "Win32_ComputerSystem")
-	if err != nil {
-		return SystemUser{}, err
-	}
-	return dst[0], nil
-}
-
-func getPhysicalMemoriesInformation(wsName string) ([]physicalMemory, error) {
-	dst, err := getGenericInfo[physicalMemory](wsName, "Win32_PhysicalMemory")
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
-}
-
-func getMsSmBios_rawSMBiosTables(wsName string) ([]msSmBios_rawSMBiosTables, error) {
-	var dst []msSmBios_rawSMBiosTables
-	q := wmi.CreateQuery(&dst, "", "MSSmBios_RawSMBiosTables")
-	err := wmi.Query(q, &dst, wsName, "root\\wmi")
-
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
-}
-
-func getDiskDrivesInformation(wsName string) ([]DiskDrive, error) {
-	dst, err := getGenericInfo[DiskDrive](wsName, "Win32_DiskDrive")
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
-}
-
-func getVideoAdaptersInformation(wsName string) ([]VideoAdapter, error) {
-	dst, err := getGenericInfo[VideoAdapter](wsName, "Win32_VideoController")
-	if err != nil {
-		return nil, err
-	}
-	var filteredDst []VideoAdapter
-	for _, adapter := range dst {
-		if adapter.AdapterRAM > 0 {
-			filteredDst = append(filteredDst, adapter)
+		if err != nil {
+			log.Println(err.Error())
+			return nil, err
 		}
 	}
-	return filteredDst, err
+	return sysInfoCollectSlice, nil
 }
 
-func getWmiMonitorIDsInformation(wsName string) ([]wmiMonitorID, error) {
-	var dst []wmiMonitorID
-	q := wmi.CreateQuery(&dst, "", "WmiMonitorID")
-	err := wmi.Query(q, &dst, wsName, "root\\wmi")
+func mapSystemInfoCollectToWsInfo(wsName string, sysInfoMap map[reflect.Type]sysInfoCollect) *WsInfo {
+	result := WsInfo{}
+	result.WsName = wsName
+	result.Cpu = mapToCpu(sysInfoMap[reflect.TypeOf(Cpu{})])
+	result.Motherboard = mapToMotherBoard(sysInfoMap[reflect.TypeOf(Motherboard{})])
+	result.SystemUser = mapToSystemUser(sysInfoMap[reflect.TypeOf(SystemUser{})])
+	result.OperatingSystem = mapToOperatingSystem(sysInfoMap[reflect.TypeOf(OperatingSystem{})])
+	result.Rams = mapToRams(sysInfoMap[reflect.TypeOf(physicalMemory{})], sysInfoMap[reflect.TypeOf(msSmBios_rawSMBiosTables{})])
+	result.DiskDrives = mapToDiskDrives(sysInfoMap[reflect.TypeOf(DiskDrive{})])
+	result.VideoAdapters = mapToVideoAdapters(sysInfoMap[reflect.TypeOf(VideoAdapter{})])
+	result.Monitors = mapToMonitors(sysInfoMap[reflect.TypeOf(wmiMonitorID{})], sysInfoMap[reflect.TypeOf(wmiMonitorConnectionParams{})])
+	return &result
+}
 
-	if err != nil {
-		return nil, err
+func mapToMonitors(wmiMonitorIDsCollection sysInfoCollect, wmiMonitorConnectionParamsCollection sysInfoCollect) []Monitor {
+	var monitors []Monitor
+	for _, monitorIDInformation := range *wmiMonitorIDsCollection.value.(*[]wmiMonitorID) {
+		abbMan := strings.Trim(string(monitorIDInformation.ManufacturerName), "\x00")
+		manName := mapAbbreviationsToMonitorManufacturer[abbMan]
+		userFriendlyName := strings.Trim(string(monitorIDInformation.UserFriendlyName), "\x00")
+		currentMonitor := Monitor{
+			Model:        userFriendlyName,
+			Manufacturer: manName,
+			InstanceName: monitorIDInformation.InstanceName,
+		}
+
+		monitors = append(monitors, currentMonitor)
 	}
-	return dst, nil
-}
 
-func getWmiMonitorConnectionParams(wsName string) ([]wmiMonitorConnectionParams, error) {
-	var dst []wmiMonitorConnectionParams
-	q := wmi.CreateQuery(&dst, "", "WmiMonitorConnectionParams")
-	err := wmi.Query(q, &dst, wsName, "root\\wmi")
-
-	if err != nil {
-		log.Println(err.Error())
-		return nil, err
+	for _, monitorConnectionParams := range *wmiMonitorConnectionParamsCollection.value.(*[]wmiMonitorConnectionParams) {
+		instanceName := monitorConnectionParams.InstanceName
+		videoOutputTechnology := monitorConnectionParams.VideoOutputTechnology
+		for i, monitor := range monitors {
+			if monitor.InstanceName == instanceName {
+				monitors[i].MonitorConnectionPort = videoOutputTechnology
+				monitors[i].MonitorConnectionPortName = monitorPorts[monitorConnectionPorts(videoOutputTechnology)]
+			}
+		}
 	}
-	return dst, nil
+	return monitors
 }
 
-func getGenericInfo[T computerInfoConstraint](wsName string, wmiClass string) ([]T, error) {
-	var dst []T
-	q := wmi.CreateQuery(&dst, "", wmiClass)
-	err := wmi.Query(q, &dst, wsName)
-	if err != nil {
-		return nil, err
+func mapToVideoAdapters(collect sysInfoCollect) []VideoAdapter {
+	var dst []VideoAdapter
+	for _, adapter := range *collect.value.(*[]VideoAdapter) {
+		if adapter.AdapterRAM > 0 {
+			dst = append(dst, adapter)
+		}
 	}
-	return dst, nil
+	return dst
 }
 
-func getSysInfoCollection() {
-	for _, sysInfo := range sysInfoCollectSlice {
-		log.Println(reflect.TypeOf(sysInfo.value))
-	}
-}
-
-func asyncInfoCollectFunction(wsName string, ch chan *WsInfo, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	getSysInfoCollection()
-
-	operatingSystem, _ := getOperatingSystemInformation(wsName)
-	cpu, _ := getCpuInformation(wsName)
-	motherBoard, _ := getMotherboardInformation(wsName)
-	user, _ := getSystemUserInformation(wsName)
-	disks, _ := getDiskDrivesInformation(wsName)
-	videoAdapters, _ := getVideoAdaptersInformation(wsName)
-
-	physicalMemories, _ := getPhysicalMemoriesInformation(wsName)
-	msRawBios, _ := getMsSmBios_rawSMBiosTables(wsName)
-
+func mapToRams(physMemCollection sysInfoCollect, msSmBiosCollection sysInfoCollect) []Ram {
 	var rams []Ram
-	for _, memory := range physicalMemories {
+	for _, memory := range *physMemCollection.value.(*[]physicalMemory) {
 		currentMemory := Ram{
 			Capacity: memory.Capacity,
 			Speed:    memory.Speed,
@@ -287,7 +224,7 @@ func asyncInfoCollectFunction(wsName string, ch chan *WsInfo, wg *sync.WaitGroup
 	}
 
 	var memoryTypeStrings []string
-	for _, bio := range msRawBios {
+	for _, bio := range *msSmBiosCollection.value.(*[]msSmBios_rawSMBiosTables) {
 		dataByte := bio.SMBiosData
 		for i := 0; i < len(dataByte); i++ {
 			if dataByte[i] == 17 && dataByte[i-1] == 00 && dataByte[i-2] == 00 {
@@ -316,47 +253,42 @@ func asyncInfoCollectFunction(wsName string, ch chan *WsInfo, wg *sync.WaitGroup
 			rams[i].MemType = memoryTypeStrings[0]
 		}
 	}
+	return rams
+}
 
-	monitorIDsInformation, _ := getWmiMonitorIDsInformation(wsName)
-	monitorWmiConnectionInformation, _ := getWmiMonitorConnectionParams(wsName)
+func mapToDiskDrives(collect sysInfoCollect) []DiskDrive {
+	return *collect.value.(*[]DiskDrive)
+}
 
-	var monitors []Monitor
-	for _, monitorIDInformation := range monitorIDsInformation {
-		abbMan := strings.Trim(string(monitorIDInformation.ManufacturerName), "\x00")
-		manName := mapAbbreviationsToMonitorManufacturer[abbMan]
-		userFriendlyName := strings.Trim(string(monitorIDInformation.UserFriendlyName), "\x00")
-		currentMonitor := Monitor{
-			Model:        userFriendlyName,
-			Manufacturer: manName,
-			InstanceName: monitorIDInformation.InstanceName,
-		}
+func mapToSystemUser(collect sysInfoCollect) SystemUser {
+	return (*collect.value.(*[]SystemUser))[0]
+}
 
-		monitors = append(monitors, currentMonitor)
+func mapToMotherBoard(collect sysInfoCollect) Motherboard {
+	return (*collect.value.(*[]Motherboard))[0]
+}
+
+func mapToCpu(collect sysInfoCollect) Cpu {
+	return (*collect.value.(*[]Cpu))[0]
+}
+
+func mapToOperatingSystem(collect sysInfoCollect) OperatingSystem {
+	value := (*collect.value.(*[]OperatingSystem))[0].Name
+	value = strings.TrimSpace(strings.Split(value, "|")[0])
+	(*collect.value.(*[]OperatingSystem))[0].Name = value
+	return (*collect.value.(*[]OperatingSystem))[0]
+}
+
+func asyncInfoCollectFunction(wsName string, ch chan *WsInfo, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	collection, err := getSysInfoCollection(wsName)
+	if err != nil {
+		log.Println(err.Error())
 	}
+	result := mapSystemInfoCollectToWsInfo(wsName, collection)
 
-	for _, monitorConnectionParams := range monitorWmiConnectionInformation {
-		instanceName := monitorConnectionParams.InstanceName
-		videoOutputTechnology := monitorConnectionParams.VideoOutputTechnology
-		for i, monitor := range monitors {
-			if monitor.InstanceName == instanceName {
-				monitors[i].MonitorConnectionPort = videoOutputTechnology
-				monitors[i].MonitorConnectionPortName = monitorPorts[monitorConnectionPorts(videoOutputTechnology)]
-			}
-		}
-	}
-
-	wsInfo := WsInfo{
-		WsName:          wsName,
-		OperatingSystem: operatingSystem,
-		Cpu:             cpu,
-		Motherboard:     motherBoard,
-		SystemUser:      user,
-		Rams:            rams,
-		DiskDrives:      disks,
-		VideoAdapters:   videoAdapters,
-		Monitors:        monitors,
-	}
-	ch <- &wsInfo
+	ch <- result
 }
 
 func GetComputersInfo(wsNames []string) []WsInfo {

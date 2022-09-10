@@ -18,8 +18,8 @@ type WsInfo struct {
 }
 
 type Cpu struct {
-	Name      string `json:"name"`
-	Frequency int64  `json:"frequency"`
+	Name          string `json:"name"`
+	MaxClockSpeed int64  `json:"frequency"`
 }
 
 type Motherboard struct {
